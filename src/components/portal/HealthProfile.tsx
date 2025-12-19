@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { User, Heart, Pill, AlertTriangle, Activity, FileText, Apple, Leaf, Stethoscope, ChevronRight, ChevronLeft, Check, Upload } from "lucide-react";
+import { User, Heart, Pill, AlertTriangle, Activity, FileText, Apple, Leaf, ChevronRight, ChevronLeft, Check, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { getStoredProfile, saveProfile, DEMO_HEALTH_PROFILE } from "@/lib/demoData";
 
 const sections = [
   { id: 1, title: "Basic Identity", icon: User },
@@ -24,45 +25,115 @@ const sections = [
 
 const conditions = ["Diabetes", "Hypertension", "Heart Disease", "Asthma/COPD", "Thyroid", "Kidney Disease", "Liver Disease", "PCOS", "Arthritis", "Gastric Issues", "Mental Health"];
 
+const emptyFormData = {
+  fullName: "", age: "", gender: "", height: "", weight: "", phone: "", emergencyContact: "",
+  symptoms: "", symptomDuration: "", severity: [5], occurredBefore: false, betterFactors: "", worseFactors: "",
+  conditions: [] as string[], otherCondition: "",
+  medications: [{ name: "", dose: "", frequency: "", prescribed: true }],
+  drugAllergies: "", foodAllergies: "", herbAllergies: "", reactionType: "",
+  pregnant: false, breastfeeding: false, tryingToConceive: false, recentSurgery: false, alcoholUse: false, smoking: false,
+  pastIllnesses: "", hospitalizations: "", surgeries: "", familyHistory: "",
+  diet: "mixed", waterIntake: "adequate", sleepHours: "", activityLevel: "moderate", stressLevel: "medium",
+  usedHerbal: false, helpedHerbs: "", issueHerbs: "", preferredForm: [] as string[],
+};
+
 const HealthProfile: React.FC = () => {
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
-    fullName: "", age: "", gender: "", height: "", weight: "", phone: "", emergencyContact: "",
-    symptoms: "", symptomDuration: "", severity: [5], occurredBefore: false, betterFactors: "", worseFactors: "",
-    conditions: [] as string[], otherCondition: "",
-    medications: [{ name: "", dose: "", frequency: "", prescribed: true }],
-    drugAllergies: "", foodAllergies: "", herbAllergies: "", reactionType: "",
-    pregnant: false, breastfeeding: false, tryingToConceive: false, recentSurgery: false, alcoholUse: false, smoking: false,
-    pastIllnesses: "", hospitalizations: "", surgeries: "", familyHistory: "",
-    diet: "mixed", waterIntake: "adequate", sleepHours: "", activityLevel: "moderate", stressLevel: "medium",
-    usedHerbal: false, helpedHerbs: "", issueHerbs: "", preferredForm: [] as string[],
-  });
+  const [formData, setFormData] = useState(emptyFormData);
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  const updateField = (field: string, value: any) => setFormData((prev) => ({ ...prev, [field]: value }));
-  const toggleCondition = (c: string) => updateField("conditions", formData.conditions.includes(c) ? formData.conditions.filter((x) => x !== c) : [...formData.conditions, c]);
+  // Load saved profile on mount
+  useEffect(() => {
+    const stored = getStoredProfile();
+    if (stored) {
+      setFormData({ ...emptyFormData, ...stored });
+    }
+    setIsLoaded(true);
+  }, []);
+
+  const updateField = (field: string, value: any) => {
+    setFormData((prev) => {
+      const updated = { ...prev, [field]: value };
+      // Auto-save to localStorage
+      saveProfile(updated);
+      return updated;
+    });
+  };
+
+  const toggleCondition = (c: string) => {
+    const newConditions = formData.conditions.includes(c) 
+      ? formData.conditions.filter((x) => x !== c) 
+      : [...formData.conditions, c];
+    updateField("conditions", newConditions);
+  };
 
   const nextStep = () => { if (currentStep < 10) setCurrentStep(currentStep + 1); };
   const prevStep = () => { if (currentStep > 1) setCurrentStep(currentStep - 1); };
 
   const handleSave = () => {
+    saveProfile(formData);
     toast({ title: "Profile Saved", description: "Your health profile has been updated successfully." });
   };
 
+  const calculateCompletion = () => {
+    let filled = 0;
+    let total = 0;
+    
+    // Basic fields
+    const basicFields = ['fullName', 'age', 'gender', 'height', 'weight', 'phone'];
+    basicFields.forEach(f => { total++; if (formData[f as keyof typeof formData]) filled++; });
+    
+    // Symptoms
+    total += 2;
+    if (formData.symptoms) filled++;
+    if (formData.symptomDuration) filled++;
+    
+    // Conditions
+    total++;
+    if (formData.conditions.length > 0) filled++;
+    
+    // Medications
+    total++;
+    if (formData.medications.some(m => m.name)) filled++;
+    
+    // Allergies
+    total++;
+    if (formData.drugAllergies || formData.foodAllergies || formData.herbAllergies) filled++;
+    
+    // Lifestyle
+    total += 2;
+    if (formData.sleepHours) filled++;
+    if (formData.diet) filled++;
+    
+    return Math.round((filled / total) * 100);
+  };
+
   const progress = (currentStep / 10) * 100;
+  const completion = calculateCompletion();
+
+  if (!isLoaded) {
+    return <div className="flex items-center justify-center min-h-[400px]">Loading...</div>;
+  }
 
   return (
     <div className="max-w-4xl mx-auto">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center mb-8">
         <h1 className="font-display text-3xl font-bold text-foreground mb-2">Health Profile</h1>
         <p className="text-muted-foreground">Complete your profile for personalized analysis</p>
+        {completion >= 60 && (
+          <div className="inline-flex items-center gap-2 mt-2 px-3 py-1 bg-success/10 text-success rounded-full text-sm">
+            <Check className="w-4 h-4" />
+            Profile {completion}% Complete - Ready for AI Analysis
+          </div>
+        )}
       </motion.div>
 
       {/* Progress */}
       <div className="mb-8">
         <div className="flex justify-between text-sm mb-2">
           <span className="text-muted-foreground">Step {currentStep} of 10</span>
-          <span className="font-medium text-primary">{Math.round(progress)}% Complete</span>
+          <span className="font-medium text-primary">{completion}% Profile Complete</span>
         </div>
         <div className="h-2 bg-muted rounded-full overflow-hidden">
           <motion.div className="h-full bg-gradient-to-r from-primary to-teal-light" initial={{ width: 0 }} animate={{ width: `${progress}%` }} />
@@ -103,6 +174,10 @@ const HealthProfile: React.FC = () => {
               <div><Label>Describe Symptoms</Label><Textarea value={formData.symptoms} onChange={(e) => updateField("symptoms", e.target.value)} placeholder="Describe your current symptoms..." className="input-medical min-h-[100px]" /></div>
               <div><Label>Duration</Label><Input value={formData.symptomDuration} onChange={(e) => updateField("symptomDuration", e.target.value)} placeholder="e.g., 2 weeks" className="input-medical" /></div>
               <div><Label>Severity (1-10): {formData.severity[0]}</Label><Slider value={formData.severity} onValueChange={(v) => updateField("severity", v)} min={1} max={10} step={1} className="mt-2" /></div>
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div><Label>What makes it better?</Label><Input value={formData.betterFactors} onChange={(e) => updateField("betterFactors", e.target.value)} placeholder="Rest, warmth, etc." className="input-medical" /></div>
+                <div><Label>What makes it worse?</Label><Input value={formData.worseFactors} onChange={(e) => updateField("worseFactors", e.target.value)} placeholder="Cold, stress, etc." className="input-medical" /></div>
+              </div>
             </div>
           )}
 
@@ -123,10 +198,19 @@ const HealthProfile: React.FC = () => {
               <h2 className="font-display text-xl font-semibold flex items-center gap-2"><Pill className="w-5 h-5 text-primary" /> Current Medications</h2>
               {formData.medications.map((med, i) => (
                 <div key={i} className="p-4 border rounded-lg space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Medicine {i + 1}</span>
+                    {i > 0 && (
+                      <Button variant="ghost" size="sm" onClick={() => {
+                        const m = formData.medications.filter((_, idx) => idx !== i);
+                        updateField("medications", m);
+                      }}>Remove</Button>
+                    )}
+                  </div>
                   <Input value={med.name} onChange={(e) => { const m = [...formData.medications]; m[i].name = e.target.value; updateField("medications", m); }} placeholder="Medicine name" className="input-medical" />
                   <div className="grid grid-cols-2 gap-2">
-                    <Input value={med.dose} onChange={(e) => { const m = [...formData.medications]; m[i].dose = e.target.value; updateField("medications", m); }} placeholder="Dose" className="input-medical" />
-                    <Input value={med.frequency} onChange={(e) => { const m = [...formData.medications]; m[i].frequency = e.target.value; updateField("medications", m); }} placeholder="Frequency" className="input-medical" />
+                    <Input value={med.dose} onChange={(e) => { const m = [...formData.medications]; m[i].dose = e.target.value; updateField("medications", m); }} placeholder="Dose (e.g., 5mg)" className="input-medical" />
+                    <Input value={med.frequency} onChange={(e) => { const m = [...formData.medications]; m[i].frequency = e.target.value; updateField("medications", m); }} placeholder="Frequency (e.g., once daily)" className="input-medical" />
                   </div>
                 </div>
               ))}

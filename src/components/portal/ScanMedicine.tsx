@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Scan, 
@@ -12,13 +12,16 @@ import {
   Package,
   Hash,
   ExternalLink,
-  Loader2
+  Loader2,
+  History
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { DEMO_MEDICINES, STORAGE_KEYS } from "@/lib/demoData";
 
 interface MedicineData {
+  code: string;
   name: string;
   batchId: string;
   manufacturer: string;
@@ -30,44 +33,71 @@ interface MedicineData {
   nftId: string;
 }
 
-const mockMedicineData: MedicineData = {
-  name: "Ashwagandha Root Extract",
-  batchId: "ASH-2024-001234",
-  manufacturer: "VirtuHerb Pharmaceuticals",
-  sourceLocation: "Madhya Pradesh, India",
-  harvestDate: "2024-09-15",
-  expiryDate: "2026-09-15",
-  qualityStatus: "verified",
-  blockchainTxId: "0x7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b",
-  nftId: "VHC-NFT-78901",
-};
+interface ScanHistoryItem {
+  id: string;
+  medicineName: string;
+  scannedAt: string;
+  status: string;
+  batchId: string;
+}
 
 const ScanMedicine: React.FC = () => {
   const { toast } = useToast();
-  const [scanMode, setScanMode] = useState<"camera" | "manual">("camera");
+  const [scanMode, setScanMode] = useState<"camera" | "manual">("manual");
   const [manualCode, setManualCode] = useState("");
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<MedicineData | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
 
-  const handleScan = async () => {
+  // Load scan history on mount
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.SCAN_HISTORY);
+    if (stored) {
+      setScanHistory(JSON.parse(stored));
+    }
+  }, []);
+
+  const saveScanToHistory = (medicine: MedicineData) => {
+    const newItem: ScanHistoryItem = {
+      id: Date.now().toString(),
+      medicineName: medicine.name,
+      scannedAt: new Date().toISOString(),
+      status: medicine.qualityStatus,
+      batchId: medicine.batchId
+    };
+    const updated = [newItem, ...scanHistory.slice(0, 9)];
+    setScanHistory(updated);
+    localStorage.setItem(STORAGE_KEYS.SCAN_HISTORY, JSON.stringify(updated));
+  };
+
+  const handleScan = async (code?: string) => {
+    const searchCode = code || manualCode.trim();
     setIsScanning(true);
     setScanError(null);
     setScanResult(null);
 
     // Simulate scanning delay
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Simulate random result
-    const random = Math.random();
-    if (random > 0.2) {
-      setScanResult(mockMedicineData);
+    // Look up in demo medicines
+    const found = DEMO_MEDICINES.find(
+      m => m.code.toLowerCase() === searchCode.toLowerCase() ||
+           m.batchId.toLowerCase() === searchCode.toLowerCase() ||
+           m.name.toLowerCase().includes(searchCode.toLowerCase())
+    );
+
+    if (found && found.qualityStatus !== "invalid") {
+      setScanResult(found);
+      saveScanToHistory(found);
       toast({
         title: "Medicine Verified",
         description: "This medicine has been authenticated on the blockchain.",
       });
+    } else if (found && found.qualityStatus === "invalid") {
+      setScanError("⚠️ WARNING: This medicine could not be verified. It may be counterfeit or not registered in the blockchain.");
     } else {
-      setScanError("Unable to verify this medicine. It may be counterfeit or not registered.");
+      setScanError("Medicine not found. Please check the code and try again. Try: VHC-2024-ASH001, VHC-2024-TRP002, or VHC-2024-TUL003");
     }
 
     setIsScanning(false);
@@ -123,6 +153,28 @@ const ScanMedicine: React.FC = () => {
           Verify the authenticity of your medicine using blockchain technology
         </p>
       </motion.div>
+
+      {/* Demo Codes Info */}
+      <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 mb-6">
+        <p className="text-sm font-medium text-primary mb-2">🧪 Try these demo codes:</p>
+        <div className="flex flex-wrap gap-2">
+          {DEMO_MEDICINES.filter(m => m.qualityStatus === "verified").map(m => (
+            <button
+              key={m.code}
+              onClick={() => { setManualCode(m.code); }}
+              className="text-xs bg-primary/10 text-primary px-2 py-1 rounded hover:bg-primary/20 transition-colors"
+            >
+              {m.code}
+            </button>
+          ))}
+          <button
+            onClick={() => { setManualCode("FAKE-001"); }}
+            className="text-xs bg-destructive/10 text-destructive px-2 py-1 rounded hover:bg-destructive/20 transition-colors"
+          >
+            FAKE-001 (Invalid)
+          </button>
+        </div>
+      </div>
 
       <AnimatePresence mode="wait">
         {!scanResult && !scanError ? (
@@ -193,7 +245,7 @@ const ScanMedicine: React.FC = () => {
                 <Button
                   size="lg"
                   className="w-full btn-primary-medical py-6"
-                  onClick={handleScan}
+                  onClick={() => handleScan("VHC-2024-ASH001")}
                   disabled={isScanning}
                 >
                   {isScanning ? (
@@ -204,7 +256,7 @@ const ScanMedicine: React.FC = () => {
                   ) : (
                     <>
                       <Scan className="w-5 h-5 mr-2" />
-                      Start Scan
+                      Simulate Scan (Demo)
                     </>
                   )}
                 </Button>
@@ -217,13 +269,13 @@ const ScanMedicine: React.FC = () => {
                   </label>
                   <Input
                     type="text"
-                    placeholder="e.g., VHC-2024-XXXXX or scan QR text"
+                    placeholder="e.g., VHC-2024-ASH001"
                     value={manualCode}
                     onChange={(e) => setManualCode(e.target.value)}
                     className="input-medical text-lg py-6"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    Enter the product code, batch number, or QR content
+                    Enter the product code, batch number, or medicine name
                   </p>
                 </div>
 
@@ -246,6 +298,29 @@ const ScanMedicine: React.FC = () => {
                   )}
                 </Button>
               </form>
+            )}
+
+            {/* Scan History */}
+            {scanHistory.length > 0 && (
+              <div className="mt-8 pt-6 border-t border-border">
+                <h3 className="font-medium text-foreground flex items-center gap-2 mb-4">
+                  <History className="w-4 h-4" />
+                  Recent Scans
+                </h3>
+                <div className="space-y-2">
+                  {scanHistory.slice(0, 3).map((item) => (
+                    <div key={item.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-sm">{item.medicineName}</p>
+                        <p className="text-xs text-muted-foreground">{item.batchId}</p>
+                      </div>
+                      <span className={`text-xs px-2 py-1 rounded ${item.status === 'verified' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                        {item.status}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </motion.div>
         ) : scanError ? (
