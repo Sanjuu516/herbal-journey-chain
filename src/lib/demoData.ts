@@ -1,4 +1,4 @@
-// Demo user and sample data for VirtuHerbChain Portal
+// Demo user and sample data for AyuSethu Portal
 
 export const DEMO_USER = {
   email: "demo@virtuherb.com",

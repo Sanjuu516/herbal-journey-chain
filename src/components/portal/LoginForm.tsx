@@ -51,7 +51,7 @@ const LoginForm: React.FC<LoginFormProps> = ({ onLogin, onBack, demoCredentials 
               {isSignUp ? "Create Account" : "Welcome Back"}
             </h1>
             <p className="text-muted-foreground mt-2">
-              {isSignUp ? "Join VirtuHerbChain today" : "Sign in to your account"}
+              {isSignUp ? "Join AyuSethu today" : "Sign in to your account"}
             </p>
           </div>
 

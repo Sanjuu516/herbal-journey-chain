@@ -38,7 +38,7 @@ const VirtuHerbPortal: React.FC = () => {
       setShowLogin(false);
       setActiveTab("scan");
       toast({
-        title: "Welcome to VirtuHerbChain!",
+        title: "Welcome to AyuSethu!",
         description: isDemo ? "Demo mode activated with sample data." : "Logged in successfully.",
       });
     } else {

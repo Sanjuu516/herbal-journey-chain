@@ -57,7 +57,7 @@ const FeatureHighlights: React.FC = () => {
           className="text-center mb-16"
         >
           <h2 className="font-display text-3xl sm:text-4xl font-bold text-foreground mb-4">
-            Why Choose VirtuHerbChain?
+            Why Choose AyuSethu?
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
             A complete healthcare ecosystem powered by blockchain technology 
